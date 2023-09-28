@@ -102,6 +102,7 @@ Full list of options in `config.json`:
 | compression                         | String  |    No        | The compression method to use when writing files to S3 and running Redshift `COPY`. The currently supported methods are `gzip` or `bzip2`. Defaults to none (`""`). |
 | slices                              | Integer |    No      | The number of slices to split files into prior to running COPY on Redshift. This should be set to the number of Redshift slices. The number of slices per node depends on the node size of the cluster - run `SELECT COUNT(DISTINCT slice) slices FROM stv_slices` to calculate this. Defaults to `1`. |
 | temp_dir                            | String  |            | (Default: platform-dependent) Directory of temporary CSV files with RECORD messages. |
+| flush_schema_on_message             | Boolean |    No      | (Default: True) Wheter to flush a schema when a new "SCHEMA" message is received. Keep the default if you might encounter schema changes during the run, disable it if you are using children schema with few records to increase speed.
 
 ### To run tests:
 

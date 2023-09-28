@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 
 import argparse
+import bz2
+import copy
+import gzip
 import io
 import json
 import os
 import sys
-import copy
-import gzip
-import bz2
 from datetime import datetime
 from decimal import Decimal
+from itertools import islice
 from tempfile import mkstemp
 
 from joblib import Parallel, delayed, parallel_backend
 from jsonschema import Draft7Validator, FormatChecker
 from singer import get_logger
-from itertools import islice
 
 from target_redshift.db_sync import DbSync
 
@@ -24,7 +24,7 @@ LOGGER = get_logger('target_redshift')
 DEFAULT_BATCH_SIZE_ROWS = 100000
 DEFAULT_PARALLELISM = 0  # 0 The number of threads used to flush tables
 DEFAULT_MAX_PARALLELISM = 16  # Don't use more than this number of threads by default when flushing streams in parallel
-
+FLUSH_SCHEMA_ON_MESSAGE = True
 
 class RecordValidationException(Exception):
     """Exception to raise when record validation failed"""
@@ -209,7 +209,8 @@ def persist_lines(config, lines, table_cache=None) -> None:
             # flush records from previous stream SCHEMA
             # if same stream has been encountered again, it means the schema might have been altered
             # so previous records need to be flushed
-            if row_count.get(stream, 0) > 0:
+            flush_schema_on_message = config.get("flush_schema_on_message", FLUSH_SCHEMA_ON_MESSAGE)
+            if flush_schema_on_message and row_count.get(stream, 0) > 0:
                 flushed_state = flush_streams(records_to_load, row_count, stream_to_sync, config, state, flushed_state)
 
                 # emit latest encountered state
