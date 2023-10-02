@@ -215,6 +215,8 @@ def persist_lines(config, lines, table_cache=None) -> None:
 
                 # emit latest encountered state
                 emit_state(flushed_state)
+                row_count[stream] = 0
+                total_row_count[stream] = 0
 
             # key_properties key must be available in the SCHEMA message.
             if 'key_properties' not in o:
@@ -242,8 +244,8 @@ def persist_lines(config, lines, table_cache=None) -> None:
             stream_to_sync[stream].create_schema_if_not_exists()
             stream_to_sync[stream].sync_table()
 
-            row_count[stream] = 0
-            total_row_count[stream] = 0
+            row_count[stream] = row_count.get(stream, 0)
+            total_row_count[stream] = total_row_count.get(stream, 0)
 
         elif t == 'ACTIVATE_VERSION':
             LOGGER.debug('ACTIVATE_VERSION message')
