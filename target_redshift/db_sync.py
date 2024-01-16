@@ -277,21 +277,16 @@ class DbSync:
         # Init S3 client
         # Conditionally pass keys as this seems to affect whether instance credentials are correctly loaded if the keys are None
         if aws_access_key_id and aws_secret_access_key:
-            aws_session = boto3.session.Session(
+            self.aws_session = boto3.session.Session(
                 aws_access_key_id=aws_access_key_id,
                 aws_secret_access_key=aws_secret_access_key,
                 aws_session_token=aws_session_token,
             )
-            credentials = aws_session.get_credentials().get_frozen_credentials()
 
-            # Explicitly set credentials to those fetched from Boto so we can re-use them in COPY SQL if necessary
-            self.connection_config["aws_access_key_id"] = credentials.access_key
-            self.connection_config["aws_secret_access_key"] = credentials.secret_key
-            self.connection_config["aws_session_token"] = credentials.token
         else:
-            aws_session = boto3.session.Session(profile_name=aws_profile)
+            self.aws_session = boto3.session.Session(profile_name=aws_profile)
 
-        self.s3 = aws_session.client("s3")
+        self.s3 = self.aws_session.client("s3")
         self.skip_updates = self.connection_config.get("skip_updates", False)
 
         self.schema_name = None
@@ -372,6 +367,14 @@ class DbSync:
                 stream_schema_message["schema"],
                 max_level=self.data_flattening_max_level,
             )
+
+    def s3_credentials(self):
+        credentials = self.aws_session.get_credentials().get_frozen_credentials()
+        return {
+            "aws_access_key_id": credentials.access_key,
+            "aws_secret_access_key": credentials.secret_key,
+            "aws_session_token": credentials.token,
+        }
 
     def open_connection(self):
         conn_string = "host='{}' dbname='{}' user='{}' password='{}' port='{}'".format(
@@ -492,6 +495,7 @@ class DbSync:
                 # Step 1: Create stage table if not exists
                 cur.execute(self.drop_table_query(is_stage=True))
                 cur.execute(self.create_table_query(is_stage=True))
+                credentials = self.s3_credentials()
 
                 # Step 2: Generate copy credentials - prefer role if provided, otherwise use access and secret keys
                 copy_credentials = (
@@ -508,14 +512,12 @@ class DbSync:
                     SECRET_ACCESS_KEY '{aws_secret_access_key}'
                     {aws_session_token}
                 """.format(
-                        aws_access_key_id=self.connection_config["aws_access_key_id"],
-                        aws_secret_access_key=self.connection_config[
-                            "aws_secret_access_key"
-                        ],
+                        aws_access_key_id=credentials["aws_access_key_id"],
+                        aws_secret_access_key=credentials["aws_secret_access_key"],
                         aws_session_token="SESSION_TOKEN '{}'".format(
-                            self.connection_config["aws_session_token"]
+                            credentials["aws_session_token"]
                         )
-                        if self.connection_config.get("aws_session_token")
+                        if credentials.get("aws_session_token")
                         else "",
                     )
                 )
